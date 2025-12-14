@@ -1,0 +1,220 @@
+// Store types
+export interface Store {
+  id: string;
+  shopify_store_url: string;
+  shopify_admin_access_token: string;
+  description: string;
+  agent_metadata: AgentMetadata;
+  pay_to_address: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentMetadata {
+  name: string;
+  category?: string;
+  tags?: string[];
+  supported_currencies?: string[];
+  shipping_regions?: string[];
+  custom_fields?: Record<string, unknown>;
+}
+
+export interface StorePublic {
+  id: string;
+  shopify_store_url: string;
+  description: string;
+  agent_metadata: AgentMetadata;
+  created_at: string;
+}
+
+// Product types
+export interface Product {
+  id: string;
+  store_id: string;
+  shopify_product_id: string;
+  title: string;
+  description: string;
+  vendor: string;
+  product_type: string;
+  tags: string[];
+  variants: ProductVariant[];
+  images: ProductImage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductVariant {
+  id: string;
+  shopify_variant_id: string;
+  title: string;
+  price: string;
+  currency: string;
+  sku: string;
+  inventory_quantity: number;
+  available: boolean;
+}
+
+export interface ProductImage {
+  id: string;
+  src: string;
+  alt: string;
+  position: number;
+}
+
+// Order types
+export type OrderIntentStatus = 'pending' | 'paid' | 'failed' | 'expired' | 'cancelled';
+
+export interface OrderIntent {
+  id: string;
+  store_id: string;
+  items: OrderItem[];
+  total_amount: string;
+  currency: string;
+  pay_to_address: string;
+  network: string;
+  asset: string;
+  status: OrderIntentStatus;
+  payment_proof?: PaymentProof;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderItem {
+  product_id: string;
+  variant_id: string;
+  quantity: number;
+  price: string;
+  title: string;
+}
+
+export interface PaymentProof {
+  transaction_hash: string;
+  signature: string;
+  verified_at: string;
+  facilitator_response?: unknown;
+}
+
+// Payment types for x402
+export interface PaymentRequirements {
+  network: string;
+  asset: string;
+  payTo: string;
+  maxAmountRequired: string;
+  description: string;
+  mimeType: string;
+  maxTimeoutSeconds: number;
+  orderIntentId: string;
+}
+
+export interface X402PaymentHeader {
+  x402Version: number;
+  scheme: string;
+  network: string;
+  payload: {
+    signature: string;
+    transaction: string;
+  };
+}
+
+// API Request/Response types
+export interface RegisterStoreRequest {
+  shopify_store_url: string;
+  shopify_admin_access_token: string;
+  description: string;
+  agent_metadata: AgentMetadata;
+  pay_to_address: string;
+}
+
+export interface CreateOrderIntentRequest {
+  store_id: string;
+  items: Array<{
+    product_id: string;
+    variant_id: string;
+    quantity: number;
+  }>;
+}
+
+export interface FinalizePaymentRequest {
+  order_intent_id: string;
+  x_payment_header: string;
+}
+
+// MCP JSON-RPC types
+export interface JsonRpcRequest {
+  jsonrpc: '2.0';
+  id: string | number;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+export interface JsonRpcResponse {
+  jsonrpc: '2.0';
+  id: string | number;
+  result?: unknown;
+  error?: JsonRpcError;
+}
+
+export interface JsonRpcError {
+  code: number;
+  message: string;
+  data?: unknown;
+}
+
+// MCP Tool types
+export interface McpTool {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+// Shopify API types
+export interface ShopifyProduct {
+  id: number;
+  title: string;
+  body_html: string;
+  vendor: string;
+  product_type: string;
+  tags: string;
+  variants: ShopifyVariant[];
+  images: ShopifyImage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShopifyVariant {
+  id: number;
+  title: string;
+  price: string;
+  sku: string;
+  inventory_quantity: number;
+  available: boolean;
+}
+
+export interface ShopifyImage {
+  id: number;
+  src: string;
+  alt: string | null;
+  position: number;
+}
+
+// API Response types
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+// Enriched Order type
+export interface EnrichedOrder extends OrderIntent {
+  store: StorePublic;
+  products: Array<{
+    item: OrderItem;
+    product: Product | null;
+  }>;
+}
