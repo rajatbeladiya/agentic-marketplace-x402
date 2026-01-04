@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { storeService } from '../services/store.service.js';
-import { shopifyService } from '../services/shopify.service.js';
 import {
   validate,
   registerStoreSchema,
@@ -19,19 +18,6 @@ router.post(
     try {
       const data = req.body as RegisterStoreRequest;
 
-      // Verify Shopify credentials
-      const isValid = await shopifyService.verifyCredentials(
-        data.shopify_store_url,
-        data.shopify_admin_access_token
-      );
-
-      if (!isValid) {
-        res.status(400).json({
-          success: false,
-          error: 'Invalid Shopify credentials or store URL',
-        });
-        return;
-      }
 
       const store = await storeService.registerStore(data);
 

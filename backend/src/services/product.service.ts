@@ -69,6 +69,7 @@ export class ProductService {
 
   /**
    * Sync products from Shopify for a store
+   * Uses delete + insert strategy to avoid unique constraint issues
    */
   async syncProductsFromShopify(storeId: string): Promise<{ synced: number; errors: string[] }> {
     const store = await storeService.getStoreById(storeId);
@@ -86,27 +87,33 @@ export class ProductService {
     let synced = 0;
     const errors: string[] = [];
 
+    // Delete existing products for this store first
+    const { error: deleteError } = await this.supabase
+      .from('products')
+      .delete()
+      .eq('store_id', storeId);
+
+    if (deleteError) {
+      console.error(`Failed to delete existing products: ${deleteError.message}`);
+    }
+
     for (const product of normalizedProducts) {
       try {
-        // Upsert product (update if exists, insert if not)
+        // Insert product
         const { error } = await this.supabase
           .from('products')
-          .upsert(
-            {
-              store_id: product.store_id,
-              shopify_product_id: product.shopify_product_id,
-              title: product.title,
-              description: product.description,
-              vendor: product.vendor,
-              product_type: product.product_type,
-              tags: product.tags,
-              variants: product.variants,
-              images: product.images,
-            },
-            {
-              onConflict: 'store_id,shopify_product_id',
-            }
-          );
+          .insert({
+            id: product.id,
+            store_id: product.store_id,
+            shopify_product_id: product.shopify_product_id,
+            title: product.title,
+            description: product.description,
+            vendor: product.vendor,
+            product_type: product.product_type,
+            tags: product.tags,
+            variants: product.variants,
+            images: product.images,
+          });
 
         if (error) {
           errors.push(`Product ${product.shopify_product_id}: ${error.message}`);

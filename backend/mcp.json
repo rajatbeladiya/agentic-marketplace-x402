@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "x402-shopify-marketplace": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/stdio-server.ts"],
+      "cwd": "/Volumes/Solidity/agentic-marketplace-x402/backend",
+      "env": {
+        "X402_BACKEND_URL": "http://localhost:4402"
+      }
+    }
+  }
+}

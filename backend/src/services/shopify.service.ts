@@ -7,6 +7,7 @@ import type {
   ShopifyImage,
 } from '../types/index.js';
 import { v4 as uuidv4 } from 'uuid';
+import { config } from '../config/index.js';
 
 export class ShopifyService {
   /**
@@ -25,7 +26,7 @@ export class ShopifyService {
 
     // Normalize store URL
     const baseUrl = this.normalizeStoreUrl(shopifyStoreUrl);
-    const url = new URL(`${baseUrl}/admin/api/2024-01/products.json`);
+    const url = new URL(`${baseUrl}/admin/api/2024-10/products.json`);
 
     url.searchParams.set('limit', limit.toString());
     if (sinceId) {
@@ -61,7 +62,7 @@ export class ShopifyService {
     productId: string
   ): Promise<ShopifyProduct | null> {
     const baseUrl = this.normalizeStoreUrl(shopifyStoreUrl);
-    const url = `${baseUrl}/admin/api/2024-01/products/${productId}.json`;
+    const url = `${baseUrl}/admin/api/2024-10/products/${productId}.json`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -186,12 +187,16 @@ export class ShopifyService {
   }
 
   /**
-   * Verify Shopify store credentials
+   * Verify Shopify store credentials by fetching a single product
+   * Uses products endpoint since that's the scope we actually need
    */
   async verifyCredentials(shopifyStoreUrl: string, adminAccessToken: string): Promise<boolean> {
     try {
       const baseUrl = this.normalizeStoreUrl(shopifyStoreUrl);
-      const url = `${baseUrl}/admin/api/2024-01/shop.json`;
+      // Use products endpoint with limit=1 to verify read_products scope
+      const url = `${baseUrl}/admin/api/2024-10/products.json?limit=1`;
+
+      console.log(`Verifying Shopify credentials for: ${baseUrl}`);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -201,8 +206,16 @@ export class ShopifyService {
         },
       });
 
-      return response.ok;
-    } catch {
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Shopify verification failed (${response.status}): ${errorText}`);
+        return false;
+      }
+
+      console.log('Shopify credentials verified successfully');
+      return true;
+    } catch (error) {
+      console.error('Shopify verification error:', error);
       return false;
     }
   }

@@ -5,6 +5,9 @@ export const config = {
   port: parseInt(process.env.PORT || '4402', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
 
+  // Test Mode - when true, uses mock Shopify data
+  testMode: process.env.TEST_MODE === 'true' || process.env.NODE_ENV === 'development',
+
   // Supabase
   supabaseUrl: process.env.SUPABASE_URL || '',
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
@@ -24,6 +27,9 @@ export const config = {
 
   // CORS
   corsOrigin: process.env.CORS_ORIGIN || '*',
+
+  // Skip payment verification in test mode
+  skipPaymentVerification: process.env.SKIP_PAYMENT_VERIFICATION === 'true',
 } as const;
 
 export function validateConfig(): void {
