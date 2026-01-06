@@ -172,7 +172,7 @@ export interface McpTool {
   };
 }
 
-// Shopify API types
+// Shopify API types (REST - legacy)
 export interface ShopifyProduct {
   id: number;
   title: string;
@@ -200,6 +200,70 @@ export interface ShopifyImage {
   src: string;
   alt: string | null;
   position: number;
+}
+
+// Shopify GraphQL API types (2026-01)
+export interface ShopifyGraphQLProduct {
+  id: string; // GraphQL uses global IDs like "gid://shopify/Product/123"
+  legacyResourceId: string; // The numeric ID for backward compatibility
+  title: string;
+  description: string;
+  descriptionHtml: string;
+  vendor: string;
+  productType: string;
+  tags: string[];
+  variants: {
+    nodes: ShopifyGraphQLVariant[];
+  };
+  media: {
+    nodes: ShopifyGraphQLMedia[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShopifyGraphQLVariant {
+  id: string;
+  legacyResourceId: string;
+  title: string;
+  price: string;
+  sku: string | null;
+  inventoryQuantity: number | null;
+  availableForSale: boolean;
+}
+
+export interface ShopifyGraphQLMedia {
+  id: string;
+  alt: string | null;
+  mediaContentType: string;
+  preview?: {
+    image?: {
+      url: string;
+    };
+  };
+}
+
+export interface ShopifyGraphQLResponse<T> {
+  data?: T;
+  errors?: Array<{
+    message: string;
+    locations?: Array<{ line: number; column: number }>;
+    path?: string[];
+  }>;
+}
+
+export interface ShopifyProductsQueryResponse {
+  products: {
+    nodes: ShopifyGraphQLProduct[];
+    pageInfo: {
+      hasNextPage: boolean;
+      endCursor: string | null;
+    };
+  };
+}
+
+export interface ShopifyProductQueryResponse {
+  product: ShopifyGraphQLProduct | null;
 }
 
 // API Response types

@@ -81,17 +81,52 @@ describe('ShopifyService', () => {
   });
 
   describe('fetchProducts', () => {
-    it('should fetch products from Shopify API', async () => {
-      const mockProducts = {
-        products: [
-          { id: 1, title: 'Product 1' },
-          { id: 2, title: 'Product 2' },
-        ],
+    it('should fetch products from Shopify GraphQL API', async () => {
+      // GraphQL response format
+      const mockGraphQLResponse = {
+        data: {
+          products: {
+            nodes: [
+              {
+                id: 'gid://shopify/Product/1',
+                legacyResourceId: '1',
+                title: 'Product 1',
+                description: 'Description 1',
+                descriptionHtml: '<p>Description 1</p>',
+                vendor: 'Vendor 1',
+                productType: 'Type 1',
+                tags: ['tag1'],
+                createdAt: '2024-01-01T00:00:00Z',
+                updatedAt: '2024-01-01T00:00:00Z',
+                variants: { nodes: [] },
+                media: { nodes: [] },
+              },
+              {
+                id: 'gid://shopify/Product/2',
+                legacyResourceId: '2',
+                title: 'Product 2',
+                description: 'Description 2',
+                descriptionHtml: '<p>Description 2</p>',
+                vendor: 'Vendor 2',
+                productType: 'Type 2',
+                tags: ['tag2'],
+                createdAt: '2024-01-01T00:00:00Z',
+                updatedAt: '2024-01-01T00:00:00Z',
+                variants: { nodes: [] },
+                media: { nodes: [] },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              endCursor: null,
+            },
+          },
+        },
       };
 
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(mockProducts),
+        json: () => Promise.resolve(mockGraphQLResponse),
       });
 
       const result = await shopifyService.fetchProducts(
@@ -99,11 +134,17 @@ describe('ShopifyService', () => {
         'test-token'
       );
 
-      expect(result).toEqual(mockProducts.products);
+      // Should return converted legacy format products
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe(1);
+      expect(result[0].title).toBe('Product 1');
+      expect(result[1].id).toBe(2);
+      expect(result[1].title).toBe('Product 2');
+
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('test-store.myshopify.com/admin/api/2024-01/products.json'),
+        expect.stringContaining('test-store.myshopify.com/admin/api/2026-01/graphql.json'),
         expect.objectContaining({
-          method: 'GET',
+          method: 'POST',
           headers: {
             'X-Shopify-Access-Token': 'test-token',
             'Content-Type': 'application/json',
@@ -112,7 +153,7 @@ describe('ShopifyService', () => {
       );
     });
 
-    it('should handle Shopify API errors', async () => {
+    it('should handle Shopify GraphQL API errors', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 401,
@@ -121,15 +162,42 @@ describe('ShopifyService', () => {
 
       await expect(
         shopifyService.fetchProducts('https://test-store.myshopify.com', 'invalid-token')
-      ).rejects.toThrow('Shopify API error (401): Unauthorized');
+      ).rejects.toThrow('Shopify GraphQL API error (401): Unauthorized');
+    });
+
+    it('should handle GraphQL errors in response', async () => {
+      const mockErrorResponse = {
+        data: null,
+        errors: [
+          { message: 'Access denied' },
+        ],
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockErrorResponse),
+      });
+
+      await expect(
+        shopifyService.fetchProducts('https://test-store.myshopify.com', 'invalid-token')
+      ).rejects.toThrow('Shopify GraphQL error: Access denied');
     });
   });
 
   describe('verifyCredentials', () => {
     it('should return true for valid credentials', async () => {
+      // GraphQL response format for shop query
+      const mockGraphQLResponse = {
+        data: {
+          shop: {
+            name: 'Test Store',
+          },
+        },
+      };
+
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ shop: { name: 'Test Store' } }),
+        json: () => Promise.resolve(mockGraphQLResponse),
       });
 
       const result = await shopifyService.verifyCredentials(
@@ -144,6 +212,7 @@ describe('ShopifyService', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 401,
+        text: () => Promise.resolve('Unauthorized'),
       });
 
       const result = await shopifyService.verifyCredentials(
@@ -163,6 +232,112 @@ describe('ShopifyService', () => {
       );
 
       expect(result).toBe(false);
+    });
+
+    it('should return false when shop data is missing', async () => {
+      const mockGraphQLResponse = {
+        data: {},
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockGraphQLResponse),
+      });
+
+      const result = await shopifyService.verifyCredentials(
+        'https://test-store.myshopify.com',
+        'token'
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('fetchProduct', () => {
+    it('should fetch a single product by ID', async () => {
+      const mockGraphQLResponse = {
+        data: {
+          product: {
+            id: 'gid://shopify/Product/12345',
+            legacyResourceId: '12345',
+            title: 'Single Product',
+            description: 'Test description',
+            descriptionHtml: '<p>Test description</p>',
+            vendor: 'Test Vendor',
+            productType: 'Test Type',
+            tags: ['tag1', 'tag2'],
+            createdAt: '2024-01-01T00:00:00Z',
+            updatedAt: '2024-01-01T00:00:00Z',
+            variants: {
+              nodes: [
+                {
+                  id: 'gid://shopify/ProductVariant/67890',
+                  legacyResourceId: '67890',
+                  title: 'Default',
+                  price: '29.99',
+                  sku: 'TEST-SKU',
+                  inventoryQuantity: 5,
+                  availableForSale: true,
+                },
+              ],
+            },
+            media: {
+              nodes: [
+                {
+                  id: 'gid://shopify/MediaImage/111',
+                  alt: 'Product image',
+                  mediaContentType: 'IMAGE',
+                  preview: {
+                    image: {
+                      url: 'https://example.com/image.jpg',
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockGraphQLResponse),
+      });
+
+      const result = await shopifyService.fetchProduct(
+        'https://test-store.myshopify.com',
+        'test-token',
+        '12345'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result!.id).toBe(12345);
+      expect(result!.title).toBe('Single Product');
+      expect(result!.variants).toHaveLength(1);
+      expect(result!.variants[0].id).toBe(67890);
+      expect(result!.images).toHaveLength(1);
+      expect(result!.images[0].src).toBe('https://example.com/image.jpg');
+    });
+
+    it('should return null for non-existent product', async () => {
+      const mockGraphQLResponse = {
+        data: {
+          product: null,
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockGraphQLResponse),
+      });
+
+      const result = await shopifyService.fetchProduct(
+        'https://test-store.myshopify.com',
+        'test-token',
+        '99999'
+      );
+
+      expect(result).toBeNull();
     });
   });
 });
