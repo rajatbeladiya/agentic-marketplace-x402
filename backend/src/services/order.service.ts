@@ -54,7 +54,7 @@ export class OrderService {
       }
 
       // Convert price to MOVE (8 decimals)
-      // Assuming price is in USD and 1 MOVE = 1 USD for simplicity
+      // Rate: 1 MOVE = 2 USD (e.g., $20 = 10 MOVE)
       // In production, you'd use an oracle or price feed
       const priceInMove = this.usdToMove(parseFloat(variant.price));
       const itemTotal = priceInMove * BigInt(item.quantity);
@@ -192,6 +192,13 @@ export class OrderService {
         Buffer.from(paymentHeader, 'base64').toString('utf-8')
       );
 
+      // Debug: Log what we're sending to the facilitator
+      console.log('=== Facilitator Verify Request ===');
+      console.log('X-PAYMENT decoded:', JSON.stringify(paymentData, null, 2));
+      console.log('Order network:', orderIntent.network);
+      console.log('Order payTo:', orderIntent.pay_to_address);
+      console.log('Order amount:', orderIntent.total_amount);
+
       // Call facilitator verify endpoint
       const response = await fetch(`${config.facilitatorUrl}/verify`, {
         method: 'POST',
@@ -199,10 +206,12 @@ export class OrderService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          x402Version: paymentData.x402Version,
-          scheme: paymentData.scheme,
-          network: orderIntent.network,
-          payload: paymentData.payload,
+          paymentPayload: {
+            x402Version: paymentData.x402Version,
+            scheme: paymentData.scheme,
+            network: paymentData.network,
+            payload: paymentData.payload,
+          },
           paymentRequirements: {
             network: orderIntent.network,
             asset: orderIntent.asset,
@@ -212,7 +221,11 @@ export class OrderService {
         }),
       });
 
-      const facilitatorResponse = await response.json() as { error?: string };
+      const facilitatorResponse = await response.json() as { error?: string; details?: unknown };
+
+      console.log('=== Facilitator Verify Response ===');
+      console.log('Status:', response.status);
+      console.log('Response:', JSON.stringify(facilitatorResponse, null, 2));
 
       if (!response.ok) {
         return {
@@ -229,14 +242,20 @@ export class OrderService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          x402Version: paymentData.x402Version,
-          scheme: paymentData.scheme,
-          network: orderIntent.network,
-          payload: paymentData.payload,
+          paymentPayload: {
+            x402Version: paymentData.x402Version,
+            scheme: paymentData.scheme,
+            network: paymentData.network,
+            payload: paymentData.payload,
+          },
         }),
       });
 
-      const settleResult = await settleResponse.json() as { error?: string; transactionHash?: string; txHash?: string };
+      const settleResult = await settleResponse.json() as { error?: string; transactionHash?: string; txHash?: string; details?: unknown };
+
+      console.log('=== Facilitator Settle Response ===');
+      console.log('Status:', settleResponse.status);
+      console.log('Response:', JSON.stringify(settleResult, null, 2));
 
       if (!settleResponse.ok) {
         return {
@@ -387,12 +406,14 @@ export class OrderService {
 
   /**
    * Convert USD to MOVE (8 decimals)
+   * Rate: 1 MOVE = 2 USD (i.e., $20 = 10 MOVE tokens)
    * In production, use a price oracle
    */
   private usdToMove(usdAmount: number): bigint {
-    // 1 MOVE = 1 USD (simplified)
+    // 1 MOVE = 2 USD (so $10 = 5 MOVE, $20 = 10 MOVE)
     // MOVE has 8 decimals
-    return BigInt(Math.round(usdAmount * 100_000_000));
+    const moveAmount = usdAmount / 2;
+    return BigInt(Math.round(moveAmount * 100_000_000));
   }
 
   /**

@@ -91,7 +91,7 @@ const tools: McpTool[] = [
   },
   {
     name: 'convert_usd_to_move',
-    description: 'Convert USD amount to MOVE tokens. Note: This uses a simplified 1:1 rate. Production should use a price oracle.',
+    description: 'Convert USD amount to MOVE tokens. Rate: 1 MOVE = 2 USD (e.g., $20 = 10 MOVE). Production should use a price oracle.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -237,8 +237,8 @@ mcpHandler.registerTool(tools[2], async (params) => {
       validation.warnings.push('Unexpected payment scheme');
     }
 
-    if (decoded.network !== 'movement') {
-      validation.warnings.push('Network is not movement');
+    if (!decoded.network?.startsWith('movement')) {
+      validation.warnings.push('Network is not movement or movement-testnet');
     }
 
     if (!decoded.payload?.signature || !decoded.payload?.transaction) {
@@ -312,7 +312,7 @@ mcpHandler.registerTool(tools[3], async (params) => {
   }
 });
 
-// convert_usd_to_move - Simple conversion (1:1 rate)
+// convert_usd_to_move - Conversion (1 MOVE = 2 USD)
 mcpHandler.registerTool(tools[4], async (params) => {
   const usdAmount = params.usd_amount as number;
 
@@ -320,16 +320,18 @@ mcpHandler.registerTool(tools[4], async (params) => {
     throw new Error('usd_amount must be a non-negative number');
   }
 
+  // Convert to MOVE: 1 MOVE = 2 USD (so $10 = 5 MOVE, $20 = 10 MOVE)
+  const moveAmount = usdAmount / 2;
   // Convert to base units (8 decimals)
-  const baseUnits = BigInt(Math.round(usdAmount * 100_000_000));
+  const baseUnits = BigInt(Math.round(moveAmount * 100_000_000));
 
   return {
     usd_amount: usdAmount,
     move_amount: baseUnits.toString(),
-    move_human_readable: usdAmount.toString(),
-    rate: '1 USD = 1 MOVE',
+    move_human_readable: moveAmount.toString(),
+    rate: '1 MOVE = 2 USD',
     decimals: 8,
-    note: 'This is a simplified 1:1 rate. Production should use a price oracle for accurate conversion.',
+    note: 'Rate: 1 MOVE = 2 USD. Production should use a price oracle for accurate conversion.',
   };
 });
 
@@ -380,6 +382,81 @@ router.get('/mcp/payment/tools', (_req: Request, res: Response) => {
       inputSchema: tool.inputSchema,
     })),
   });
+});
+
+// Import Aptos SDK for transaction building
+import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+
+// API endpoint to build a transaction (for frontend to avoid CORS)
+router.post('/build-transaction', async (req: Request, res: Response) => {
+  try {
+    const { sender, payTo, amount } = req.body;
+
+    // Validate inputs
+    if (!sender || !payTo || !amount) {
+      res.status(400).json({
+        success: false,
+        error: 'Missing required fields: sender, payTo, amount',
+      });
+      return;
+    }
+
+    if (!sender.match(/^0x[a-fA-F0-9]{64}$/)) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid sender address format',
+      });
+      return;
+    }
+
+    if (!payTo.match(/^0x[a-fA-F0-9]{64}$/)) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid payTo address format',
+      });
+      return;
+    }
+
+    // Initialize Aptos client for Movement
+    const aptosConfig = new AptosConfig({
+      network: Network.CUSTOM,
+      fullnode: config.movementRpcUrl,
+    });
+    const aptos = new Aptos(aptosConfig);
+
+    // Build the transaction with extended expiration (10 minutes to match payment timeout)
+    const transaction = await aptos.transaction.build.simple({
+      sender: sender,
+      data: {
+        function: '0x1::aptos_account::transfer',
+        functionArguments: [payTo, amount],
+      },
+      options: {
+        expireTimestamp: Math.floor(Date.now() / 1000) + config.paymentTimeoutSeconds,
+      },
+    });
+
+    // Get BCS bytes
+    const transactionBcsBase64 = Buffer.from(transaction.bcsToBytes()).toString('base64');
+
+    res.json({
+      success: true,
+      transactionBcsBase64,
+      transaction: {
+        sender,
+        payTo,
+        amount,
+        function: '0x1::aptos_account::transfer',
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Build transaction error:', message);
+    res.status(500).json({
+      success: false,
+      error: `Failed to build transaction: ${message}`,
+    });
+  }
 });
 
 export default router;

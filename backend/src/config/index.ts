@@ -13,9 +13,9 @@ export const config = {
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
 
-  // Movement Network
-  movementRpcUrl: process.env.MOVEMENT_RPC_URL || 'https://mainnet.movementnetwork.xyz/v1',
-  movementNetwork: process.env.MOVEMENT_NETWORK || 'movement',
+  // Movement Network (testnet by default for development)
+  movementRpcUrl: process.env.MOVEMENT_RPC_URL || 'https://testnet.movementnetwork.xyz/v1',
+  movementNetwork: process.env.MOVEMENT_NETWORK || 'movement-testnet',
   movementAsset: process.env.MOVEMENT_ASSET || '0x1::aptos_coin::AptosCoin',
 
   // x402 Facilitator
