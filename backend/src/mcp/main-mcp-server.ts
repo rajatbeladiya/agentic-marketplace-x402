@@ -8,6 +8,23 @@ import type { JsonRpcRequest, McpTool } from '../types/index.js';
 const router = Router();
 const mcpHandler = new McpHandler();
 
+// Movement Explorer URL for transaction links
+const MOVEMENT_EXPLORER_URL = 'https://explorer.movementnetwork.xyz/txn';
+const MOVEMENT_NETWORK_PARAM = 'bardock+testnet';
+
+// Payment signing page URL
+const PAYMENT_SIGNING_URL = 'https://agentic-marketplace-x402-1.onrender.com/pay';
+
+/**
+ * Convert micro MOVE (8 decimals) to whole MOVE tokens
+ * Returns integer string without decimals
+ */
+function microMoveToMove(microMove: string): string {
+  const value = BigInt(microMove);
+  const moveAmount = value / BigInt(100_000_000);
+  return moveAmount.toString();
+}
+
 // Define tools
 const tools: McpTool[] = [
   {
@@ -63,7 +80,7 @@ const tools: McpTool[] = [
   },
   {
     name: 'initiate_checkout',
-    description: 'Start the checkout process for selected items. Returns payment requirements including amount, recipient address, and order intent ID. This is Phase 1 of the x402 payment flow.',
+    description: 'Start the checkout process for selected items. Returns payment requirements including amount, recipient address, and order intent ID. This is Phase 1 of the x402 payment flow. IMPORTANT: Always ask the user for their shipping address before calling this tool.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -93,8 +110,55 @@ const tools: McpTool[] = [
             required: ['product_id', 'variant_id', 'quantity'],
           },
         },
+        shipping_address: {
+          type: 'object',
+          description: 'Shipping address for order delivery. Required for physical products.',
+          properties: {
+            first_name: {
+              type: 'string',
+              description: 'First name of the recipient',
+            },
+            last_name: {
+              type: 'string',
+              description: 'Last name of the recipient',
+            },
+            address1: {
+              type: 'string',
+              description: 'Primary street address',
+            },
+            address2: {
+              type: 'string',
+              description: 'Apartment, suite, unit, etc. (optional)',
+            },
+            city: {
+              type: 'string',
+              description: 'City name',
+            },
+            province: {
+              type: 'string',
+              description: 'State or province (optional)',
+            },
+            country: {
+              type: 'string',
+              description: 'Country name or code',
+            },
+            zip: {
+              type: 'string',
+              description: 'Postal or ZIP code',
+            },
+            phone: {
+              type: 'string',
+              description: 'Contact phone number (optional)',
+            },
+            email: {
+              type: 'string',
+              description: 'Contact email address (optional)',
+            },
+          },
+          required: ['first_name', 'last_name', 'address1', 'city', 'country', 'zip'],
+        },
       },
-      required: ['store_id', 'items'],
+      required: ['store_id', 'items', 'shipping_address'],
     },
   },
   {
@@ -179,32 +243,58 @@ mcpHandler.registerTool(tools[2], async (params) => {
     variant_id: string;
     quantity: number;
   }>;
+  const shippingAddress = params.shipping_address as {
+    first_name: string;
+    last_name: string;
+    address1: string;
+    address2?: string;
+    city: string;
+    province?: string;
+    country: string;
+    zip: string;
+    phone?: string;
+    email?: string;
+  } | undefined;
 
   if (!storeId || !items || items.length === 0) {
     throw new Error('store_id and items are required');
   }
 
+  if (!shippingAddress) {
+    throw new Error('shipping_address is required. Please provide the delivery address including first_name, last_name, address1, city, country, and zip.');
+  }
+
   const { orderIntent, paymentRequirements } = await orderService.createOrderIntent({
     store_id: storeId,
     items,
+    shipping_address: shippingAddress,
   });
+
+  // Convert micro MOVE to whole MOVE tokens for display
+  const moveTokens = microMoveToMove(orderIntent.total_amount);
 
   // Return 402-like payload inside tool result
   return {
     status: 'payment_required',
     order_intent: {
       id: orderIntent.id,
-      total_amount: orderIntent.total_amount,
+      total_amount_micro: orderIntent.total_amount,
+      total_amount_move: moveTokens,
       currency: orderIntent.currency,
       expires_at: orderIntent.expires_at,
       items: orderIntent.items,
     },
-    payment_requirements: paymentRequirements,
+    payment_requirements: {
+      ...paymentRequirements,
+      maxAmountRequired_move: moveTokens,
+    },
     instructions: [
-      '1. Build a MOVE transfer transaction using the payTo address and maxAmountRequired',
-      '2. Sign the transaction with your wallet (do NOT submit)',
-      '3. Call finalize_checkout with the order_intent_id and base64-encoded X-PAYMENT header',
+      `1. Create a MOVE transaction transferring ${moveTokens} MOVE to this address: ${paymentRequirements.payTo}`,
+      `2. Sign the transaction with your wallet (but don't submit it to the blockchain yet)`,
+      `3. Generate the base64-encoded X-PAYMENT header by signing the transaction here: ${PAYMENT_SIGNING_URL}?payTo=${paymentRequirements.payTo}&amount=${moveTokens}&orderId=${orderIntent.id}`,
+      `4. Provide the X-PAYMENT header to finalize checkout`,
     ],
+    payment_signing_url: `${PAYMENT_SIGNING_URL}?payTo=${paymentRequirements.payTo}&amount=${moveTokens}&orderId=${orderIntent.id}`,
   };
 });
 
@@ -218,15 +308,27 @@ mcpHandler.registerTool(tools[3], async (params) => {
 
   const orderIntent = await orderService.finalizeOrder(orderIntentId, xPaymentHeader);
 
+  // Convert micro MOVE to whole MOVE tokens for display
+  const moveTokens = microMoveToMove(orderIntent.total_amount);
+
+  // Build full transaction URL
+  const facilitatorResponse = orderIntent.payment_proof?.facilitator_response as { transaction?: string } | undefined;
+  const txHash = facilitatorResponse?.transaction;
+  const transactionUrl = txHash
+    ? `${MOVEMENT_EXPLORER_URL}/${txHash}?network=${MOVEMENT_NETWORK_PARAM}`
+    : null;
+
   return {
     status: 'success',
     message: 'Payment verified and order finalized',
     order: {
       id: orderIntent.id,
       status: orderIntent.status,
-      total_amount: orderIntent.total_amount,
+      total_amount_micro: orderIntent.total_amount,
+      total_amount_move: moveTokens,
       currency: orderIntent.currency,
-      payment_proof: orderIntent.payment_proof,
+      transaction: txHash,
+      transaction_url: transactionUrl,
     },
   };
 });

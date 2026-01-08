@@ -394,6 +394,247 @@ export class ShopifyService {
       return false;
     }
   }
+
+  /**
+   * Create an order in Shopify using GraphQL API
+   * This creates a draft order and then completes it
+   */
+  async createOrder(
+    shopifyStoreUrl: string,
+    adminAccessToken: string,
+    orderData: {
+      lineItems: Array<{
+        variantId: string; // Shopify variant ID (numeric)
+        quantity: number;
+        title?: string;
+      }>;
+      shippingAddress?: {
+        firstName?: string;
+        lastName?: string;
+        address1?: string;
+        address2?: string;
+        city?: string;
+        province?: string;
+        country?: string;
+        zip?: string;
+        phone?: string;
+      };
+      email?: string;
+      note?: string;
+      tags?: string[];
+      financialStatus?: 'PENDING' | 'AUTHORIZED' | 'PAID' | 'PARTIALLY_PAID' | 'REFUNDED' | 'VOIDED' | 'PARTIALLY_REFUNDED' | 'UNPAID';
+      transactionHash?: string;
+    }
+  ): Promise<{
+    orderId: string;
+    orderNumber: string;
+    orderName: string;
+  }> {
+    try {
+      // Build line items for draft order
+      const lineItemsInput = orderData.lineItems.map((item) => {
+        const variantGid = item.variantId.startsWith('gid://')
+          ? item.variantId
+          : `gid://shopify/ProductVariant/${item.variantId}`;
+        
+        return {
+          variantId: variantGid,
+          quantity: item.quantity,
+          title: item.title,
+        };
+      });
+
+      // Build shipping address if provided
+      const shippingAddressInput = orderData.shippingAddress
+        ? {
+            firstName: orderData.shippingAddress.firstName,
+            lastName: orderData.shippingAddress.lastName,
+            address1: orderData.shippingAddress.address1,
+            address2: orderData.shippingAddress.address2,
+            city: orderData.shippingAddress.city,
+            province: orderData.shippingAddress.province,
+            country: orderData.shippingAddress.country,
+            zip: orderData.shippingAddress.zip,
+            phone: orderData.shippingAddress.phone,
+          }
+        : null;
+
+      // Step 1: Create draft order
+      const draftOrderMutation = `
+        mutation draftOrderCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              legacyResourceId
+              name
+              order {
+                id
+                legacyResourceId
+                name
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+
+      const draftOrderInput: Record<string, unknown> = {
+        lineItems: lineItemsInput,
+        note: orderData.note || 'Order paid via x402 MOVE tokens',
+        tags: orderData.tags || ['x402', 'crypto-payment', 'move-token'],
+        useCustomerDefaultAddress: false,
+      };
+
+      if (orderData.email) {
+        draftOrderInput.email = orderData.email;
+      }
+
+      if (shippingAddressInput) {
+        draftOrderInput.shippingAddress = shippingAddressInput;
+      }
+
+      if (orderData.transactionHash) {
+        draftOrderInput.note = `${draftOrderInput.note}\nTransaction: ${orderData.transactionHash}`;
+      }
+
+      console.log('Creating Shopify draft order with input:', JSON.stringify(draftOrderInput, null, 2));
+
+      const draftResult = await this.graphqlRequest<{
+        draftOrderCreate: {
+          draftOrder?: {
+            id: string;
+            legacyResourceId: string;
+            name: string;
+            order?: {
+              id: string;
+              legacyResourceId: string;
+              name: string;
+            };
+          };
+          userErrors: Array<{ field: string[]; message: string }>;
+        };
+      }>(shopifyStoreUrl, adminAccessToken, draftOrderMutation, { input: draftOrderInput });
+
+      if (draftResult.errors && draftResult.errors.length > 0) {
+        throw new Error(`Shopify draft order GraphQL errors: ${draftResult.errors.map(e => e.message).join(', ')}`);
+      }
+
+      if (draftResult.data?.draftOrderCreate?.userErrors?.length) {
+        const errors = draftResult.data.draftOrderCreate.userErrors.map(e => e.message).join(', ');
+        throw new Error(`Shopify draft order user errors: ${errors}`);
+      }
+
+      const draftOrder = draftResult.data?.draftOrderCreate?.draftOrder;
+      if (!draftOrder) {
+        throw new Error('Failed to create draft order: No draft order returned');
+      }
+
+      console.log(`Draft order created: ${draftOrder.id} (${draftOrder.name})`);
+
+      // Step 2: Complete the draft order
+      const completeMutation = `
+        mutation draftOrderComplete($id: ID!) {
+          draftOrderComplete(id: $id) {
+            draftOrder {
+              id
+              order {
+                id
+                legacyResourceId
+                name
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+
+      const completeResult = await this.graphqlRequest<{
+        draftOrderComplete: {
+          draftOrder?: {
+            id: string;
+            order?: {
+              id: string;
+              legacyResourceId: string;
+              name: string;
+            };
+          };
+          userErrors: Array<{ field: string[]; message: string }>;
+        };
+      }>(shopifyStoreUrl, adminAccessToken, completeMutation, { id: draftOrder.id });
+
+      if (completeResult.errors && completeResult.errors.length > 0) {
+        throw new Error(`Shopify complete order GraphQL errors: ${completeResult.errors.map(e => e.message).join(', ')}`);
+      }
+
+      if (completeResult.data?.draftOrderComplete?.userErrors?.length) {
+        const errors = completeResult.data.draftOrderComplete.userErrors.map(e => e.message).join(', ');
+        throw new Error(`Shopify complete order user errors: ${errors}`);
+      }
+
+      const order = completeResult.data?.draftOrderComplete?.draftOrder?.order;
+      if (!order) {
+        throw new Error('Failed to complete draft order: No order returned');
+      }
+
+      console.log(`Order completed in Shopify: ${order.id} (${order.name})`);
+
+      // Step 3: Mark order as paid (if financial status is PAID)
+      if (orderData.financialStatus === 'PAID' && orderData.transactionHash) {
+        try {
+          const markAsPaidMutation = `
+            mutation orderMarkAsPaid($input: OrderMarkAsPaidInput!) {
+              orderMarkAsPaid(input: $input) {
+                order {
+                  id
+                  displayFinancialStatus
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `;
+
+          const markAsPaidResult = await this.graphqlRequest<{
+            orderMarkAsPaid: {
+              order?: {
+                id: string;
+                displayFinancialStatus: string;
+              };
+              userErrors: Array<{ field: string[]; message: string }>;
+            };
+          }>(shopifyStoreUrl, adminAccessToken, markAsPaidMutation, {
+            input: { id: order.id },
+          });
+
+          if (markAsPaidResult.data?.orderMarkAsPaid?.userErrors?.length) {
+            console.warn('Failed to mark order as paid:', markAsPaidResult.data.orderMarkAsPaid.userErrors);
+          } else {
+            console.log(`Order marked as paid: ${order.id}`);
+          }
+        } catch (paymentError) {
+          console.warn('Error marking order as paid (non-critical):', paymentError);
+          // Don't throw - order is still created successfully
+        }
+      }
+
+      return {
+        orderId: order.legacyResourceId,
+        orderNumber: order.legacyResourceId,
+        orderName: order.name,
+      };
+    } catch (error) {
+      console.error('Error creating Shopify order:', error);
+      throw error;
+    }
+  }
 }
 
 export const shopifyService = new ShopifyService();

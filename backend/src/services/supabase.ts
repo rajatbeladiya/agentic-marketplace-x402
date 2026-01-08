@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS order_intents (
   asset TEXT NOT NULL DEFAULT '0x1::aptos_coin::AptosCoin',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed', 'expired', 'cancelled')),
   payment_proof JSONB,
+  shipping_address JSONB,
+  shopify_order_id TEXT,
+  shopify_order_number TEXT,
+  shopify_order_name TEXT,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -70,6 +74,7 @@ CREATE TABLE IF NOT EXISTS order_intents (
 CREATE INDEX IF NOT EXISTS idx_products_store_id ON products(store_id);
 CREATE INDEX IF NOT EXISTS idx_order_intents_store_id ON order_intents(store_id);
 CREATE INDEX IF NOT EXISTS idx_order_intents_status ON order_intents(status);
+CREATE INDEX IF NOT EXISTS idx_order_intents_shopify_order_id ON order_intents(shopify_order_id);
 CREATE INDEX IF NOT EXISTS idx_stores_shopify_url ON stores(shopify_store_url);
 
 -- Updated at trigger function

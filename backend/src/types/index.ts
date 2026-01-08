@@ -76,6 +76,10 @@ export interface OrderIntent {
   asset: string;
   status: OrderIntentStatus;
   payment_proof?: PaymentProof;
+  shipping_address?: ShippingAddress;
+  shopify_order_id?: string;
+  shopify_order_number?: string;
+  shopify_order_name?: string;
   expires_at: string;
   created_at: string;
   updated_at: string;
@@ -89,8 +93,21 @@ export interface OrderItem {
   title: string;
 }
 
+export interface ShippingAddress {
+  first_name: string;
+  last_name: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  province?: string;
+  country: string;
+  zip: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface PaymentProof {
-  transaction_hash: string;
+  transaction: string;
   signature: string;
   verified_at: string;
   facilitator_response?: unknown;
@@ -134,6 +151,7 @@ export interface CreateOrderIntentRequest {
     variant_id: string;
     quantity: number;
   }>;
+  shipping_address?: ShippingAddress;
 }
 
 export interface FinalizePaymentRequest {

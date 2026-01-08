@@ -8,6 +8,7 @@ Backend service for agentic shopping using the x402 payment protocol on Movement
 - **Product Sync**: Fetch and normalize products from Shopify Admin API
 - **Two-Phase x402 Payment**: Implements the x402 "Payment Required" pattern
 - **MCP Server**: JSON-RPC 2.0 endpoints for LLM agent tooling
+- **MCP SSE Server**: Server-Sent Events transport for claude.ai web app
 - **Payment MCP Server**: Tools for creating and verifying MOVE token payments
 - **Order Management**: Track order intents and completed orders
 
@@ -177,8 +178,10 @@ npm start
 - `POST /api/orders/:id/cancel` - Cancel pending order
 
 ### MCP Server (Main)
-- `POST /api/mcp` - JSON-RPC 2.0 endpoint
+- `POST /api/mcp` - JSON-RPC 2.0 endpoint (stdio/HTTP)
 - `GET /api/mcp/tools` - List available tools
+- `GET /api/mcp` - SSE endpoint for claude.ai/chatgpt.com web app
+- `POST /api/mcp/sse/message` - Message endpoint for SSE transport
 
 **Tools:**
 - `list_stores` - List marketplace stores
@@ -186,6 +189,12 @@ npm start
 - `initiate_checkout` - Start checkout (Phase 1)
 - `finalize_checkout` - Complete checkout (Phase 2)
 - `get_order_details` - Get order information
+
+**For claude.ai web app users:**
+Add this Remote MCP Server URL in Settings:
+```
+https://agentic-marketplace-x402.onrender.com/api/mcp
+```
 
 ### MCP Server (Payment)
 - `POST /api/mcp/payment` - JSON-RPC 2.0 endpoint

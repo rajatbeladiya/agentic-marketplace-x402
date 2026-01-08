@@ -60,9 +60,8 @@ function PaymentPageContent() {
   const [amountMove, setAmountMove] = useState(
     searchParams.get("amount") || ""
   );
-  const [orderIntentId, setOrderIntentId] = useState(
-    searchParams.get("orderId") || ""
-  );
+  // Order Intent ID is read from URL params but not shown as editable field
+  const orderIntentId = searchParams.get("orderId") || "";
 
   // UI state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -74,11 +73,9 @@ function PaymentPageContent() {
   useEffect(() => {
     const payToParam = searchParams.get("payTo");
     const amountParam = searchParams.get("amount");
-    const orderIdParam = searchParams.get("orderId");
 
     if (payToParam) setPayTo(payToParam);
     if (amountParam) setAmountMove(amountParam);
-    if (orderIdParam) setOrderIntentId(orderIdParam);
   }, [searchParams]);
 
   // Find Nightly wallet
@@ -265,9 +262,9 @@ function PaymentPageContent() {
     }
   };
 
-  // Calculate USD equivalent (1 MOVE = 2 USD)
+  // Calculate USD equivalent (1 MOVE = 1 USD)
   const usdEquivalent = amountMove
-    ? (parseFloat(amountMove) * 2).toFixed(2)
+    ? parseFloat(amountMove).toFixed(2)
     : "0.00";
 
   return (
@@ -295,11 +292,7 @@ function PaymentPageContent() {
 
       {/* Main Content */}
       <main className="max-w-2xl mx-auto px-6 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-8"
-        >
+        <div className="space-y-8">
           {/* Title */}
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold text-white">
@@ -394,23 +387,8 @@ function PaymentPageContent() {
                 </div>
               </div>
               <p className="text-white/40 text-xs">
-                Equivalent: ~${usdEquivalent} USD (Rate: 1 MOVE = $2 USD)
+                Equivalent: ~${usdEquivalent} USD (Rate: 1 MOVE = $1 USD)
               </p>
-            </div>
-
-            {/* Order Intent ID (Optional) */}
-            <div className="space-y-2">
-              <Label htmlFor="orderId" className="text-white/80">
-                Order Intent ID{" "}
-                <span className="text-white/40">(optional)</span>
-              </Label>
-              <Input
-                id="orderId"
-                value={orderIntentId}
-                onChange={(e) => setOrderIntentId(e.target.value)}
-                placeholder="507fc564-1843-4ba5-84fd-03558d90f76f"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 font-mono text-sm"
-              />
             </div>
 
             {/* Error Display */}
@@ -515,7 +493,7 @@ function PaymentPageContent() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </main>
     </div>
   );

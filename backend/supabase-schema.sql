@@ -138,3 +138,24 @@ BEGIN
         ALTER TABLE stores ADD CONSTRAINT unique_shopify_store_url UNIQUE (shopify_store_url);
     END IF;
 END $$;
+
+-- =====================================================
+-- SHIPPING ADDRESS MIGRATION
+-- Add shipping_address column to order_intents
+-- =====================================================
+
+-- Add shipping_address column to order_intents table
+ALTER TABLE order_intents ADD COLUMN IF NOT EXISTS shipping_address JSONB;
+
+-- =====================================================
+-- SHOPIFY ORDER TRACKING MIGRATION
+-- Add Shopify order ID columns to order_intents
+-- =====================================================
+
+-- Add Shopify order tracking columns
+ALTER TABLE order_intents ADD COLUMN IF NOT EXISTS shopify_order_id TEXT;
+ALTER TABLE order_intents ADD COLUMN IF NOT EXISTS shopify_order_number TEXT;
+ALTER TABLE order_intents ADD COLUMN IF NOT EXISTS shopify_order_name TEXT;
+
+-- Create index for Shopify order lookups
+CREATE INDEX IF NOT EXISTS idx_order_intents_shopify_order_id ON order_intents(shopify_order_id);

@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './supabase.js';
 import { storeService } from './store.service.js';
 import { productService } from './product.service.js';
+import { shopifyService } from './shopify.service.js';
 import { config } from '../config/index.js';
 import type {
   OrderIntent,
@@ -89,6 +90,7 @@ export class OrderService {
         asset: config.movementAsset,
         status: 'pending',
         expires_at: expiresAt,
+        shipping_address: request.shipping_address || null,
       })
       .select()
       .single();
@@ -151,17 +153,105 @@ export class OrderService {
 
     // Update order intent with payment proof
     const paymentProof: PaymentProof = {
-      transaction_hash: verificationResult.transactionHash || '',
+      transaction: verificationResult.transactionHash || '',
       signature: paymentHeader,
       verified_at: new Date().toISOString(),
       facilitator_response: verificationResult.facilitatorResponse,
     };
 
+    // Get store details for Shopify integration
+    const store = await storeService.getStoreById(orderIntent.store_id);
+    if (!store) {
+      throw new Error('Store not found');
+    }
+
+    // Create order in Shopify
+    let shopifyOrderId: string | undefined;
+    let shopifyOrderNumber: string | undefined;
+    let shopifyOrderName: string | undefined;
+
+    try {
+      console.log(`Creating order in Shopify for order intent ${orderIntentId}...`);
+
+      // Get product details to map to Shopify variant IDs
+      const productIds = orderIntent.items.map((item) => item.product_id);
+      const products = await productService.getProductsByIds(productIds);
+      const productMap = new Map<string, Product>(products.map((p) => [p.id, p]));
+
+      // Build line items with Shopify variant IDs
+      const lineItems = orderIntent.items.map((item) => {
+        const product = productMap.get(item.product_id);
+        if (!product) {
+          throw new Error(`Product not found: ${item.product_id}`);
+        }
+
+        const variant = product.variants.find((v) => v.id === item.variant_id);
+        if (!variant) {
+          throw new Error(`Variant not found: ${item.variant_id}`);
+        }
+
+        return {
+          variantId: variant.shopify_variant_id,
+          quantity: item.quantity,
+          title: item.title,
+        };
+      });
+
+      // Build shipping address if available
+      const shippingAddress = orderIntent.shipping_address
+        ? {
+            firstName: orderIntent.shipping_address.first_name,
+            lastName: orderIntent.shipping_address.last_name,
+            address1: orderIntent.shipping_address.address1,
+            address2: orderIntent.shipping_address.address2,
+            city: orderIntent.shipping_address.city,
+            province: orderIntent.shipping_address.province,
+            country: orderIntent.shipping_address.country,
+            zip: orderIntent.shipping_address.zip,
+            phone: orderIntent.shipping_address.phone,
+          }
+        : undefined;
+
+      // Create order in Shopify
+      const shopifyOrder = await shopifyService.createOrder(
+        store.shopify_store_url,
+        store.shopify_admin_access_token,
+        {
+          lineItems,
+          shippingAddress,
+          email: orderIntent.shipping_address?.email,
+          note: `x402 Payment - MOVE Token\nOrder Intent: ${orderIntentId}`,
+          tags: ['x402', 'crypto-payment', 'move-token', 'agentic-marketplace'],
+          financialStatus: 'PAID',
+          transactionHash: verificationResult.transactionHash,
+        }
+      );
+
+      shopifyOrderId = shopifyOrder.orderId;
+      shopifyOrderNumber = shopifyOrder.orderNumber;
+      shopifyOrderName = shopifyOrder.orderName;
+
+      console.log(
+        `✓ Shopify order created: ${shopifyOrderName} (ID: ${shopifyOrderId})`
+      );
+    } catch (shopifyError) {
+      console.error('Failed to create Shopify order:', shopifyError);
+      // Log the error but don't fail the entire order
+      // The payment is verified, so we still mark it as paid
+      console.warn(
+        'Payment is verified, but Shopify order creation failed. Order will be marked as paid in local database.'
+      );
+    }
+
+    // Update order intent with payment proof and Shopify order details
     const { data: updatedOrder, error } = await this.supabase
       .from('order_intents')
       .update({
         status: 'paid',
         payment_proof: paymentProof,
+        shopify_order_id: shopifyOrderId,
+        shopify_order_number: shopifyOrderNumber,
+        shopify_order_name: shopifyOrderName,
       })
       .eq('id', orderIntentId)
       .select()
@@ -406,14 +496,13 @@ export class OrderService {
 
   /**
    * Convert USD to MOVE (8 decimals)
-   * Rate: 1 MOVE = 2 USD (i.e., $20 = 10 MOVE tokens)
+   * Rate: 1 USD = 1 MOVE (i.e., $1 = 1 MOVE token)
    * In production, use a price oracle
    */
   private usdToMove(usdAmount: number): bigint {
-    // 1 MOVE = 2 USD (so $10 = 5 MOVE, $20 = 10 MOVE)
+    // 1 USD = 1 MOVE (so $1 = 1 MOVE, $10 = 10 MOVE)
     // MOVE has 8 decimals
-    const moveAmount = usdAmount / 2;
-    return BigInt(Math.round(moveAmount * 100_000_000));
+    return BigInt(Math.round(usdAmount * 100_000_000));
   }
 
   /**

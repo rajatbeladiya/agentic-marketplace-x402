@@ -68,7 +68,7 @@ const tools = [
   },
   {
     name: 'initiate_checkout',
-    description: 'Start the checkout process for selected items. Returns payment requirements including amount, recipient address, and order intent ID. This is Phase 1 of the x402 payment flow.',
+    description: 'Start the checkout process for selected items. Returns payment requirements including amount, recipient address, and order intent ID. This is Phase 1 of the x402 payment flow. IMPORTANT: Always ask the user for their shipping address before calling this tool.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -98,8 +98,55 @@ const tools = [
             required: ['product_id', 'variant_id', 'quantity'],
           },
         },
+        shipping_address: {
+          type: 'object',
+          description: 'Shipping address for order delivery. Required for physical products.',
+          properties: {
+            first_name: {
+              type: 'string',
+              description: 'First name of the recipient',
+            },
+            last_name: {
+              type: 'string',
+              description: 'Last name of the recipient',
+            },
+            address1: {
+              type: 'string',
+              description: 'Primary street address',
+            },
+            address2: {
+              type: 'string',
+              description: 'Apartment, suite, unit, etc. (optional)',
+            },
+            city: {
+              type: 'string',
+              description: 'City name',
+            },
+            province: {
+              type: 'string',
+              description: 'State or province (optional)',
+            },
+            country: {
+              type: 'string',
+              description: 'Country name or code',
+            },
+            zip: {
+              type: 'string',
+              description: 'Postal or ZIP code',
+            },
+            phone: {
+              type: 'string',
+              description: 'Contact phone number (optional)',
+            },
+            email: {
+              type: 'string',
+              description: 'Contact email address (optional)',
+            },
+          },
+          required: ['first_name', 'last_name', 'address1', 'city', 'country', 'zip'],
+        },
       },
-      required: ['store_id', 'items'],
+      required: ['store_id', 'items', 'shipping_address'],
     },
   },
   {
