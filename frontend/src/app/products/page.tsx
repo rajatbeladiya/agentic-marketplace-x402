@@ -15,6 +15,7 @@ import {
   Loader2,
   ImageIcon,
   Sparkles,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,13 +24,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { useStore } from "@/store/useStore";
+import { useAuth } from "@/components/AuthProvider";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { getProducts, syncProducts } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/types";
 
 export default function ProductsPage() {
+  return (
+    <ProtectedRoute>
+      <ProductsContent />
+    </ProtectedRoute>
+  );
+}
+
+function ProductsContent() {
   const router = useRouter();
   const { toast } = useToast();
+  const { signOut } = useAuth();
   const {
     currentStore,
     shopifyProducts,
@@ -133,11 +145,22 @@ export default function ProductsPage() {
               </div>
               <span className="text-xl font-bold text-gradient">x402</span>
             </Link>
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">
-                Skip to Dashboard
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm">
+                  Dashboard
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </Button>
-            </Link>
+            </div>
           </div>
         </div>
       </nav>

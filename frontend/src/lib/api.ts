@@ -1,17 +1,36 @@
-import type { Store, Product, OrderIntent, ApiResponse, EnrichedOrder } from "@/types";
+import type { Store, Product, OrderIntent, ApiResponse, EnrichedOrder, MeResponse } from "@/types";
+import { createClient } from "./supabase";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4402/api";
 
+async function getAuthToken(): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchApi<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit & { requireAuth?: boolean }
 ): Promise<ApiResponse<T>> {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...options?.headers,
+  };
+
+  // Add auth header if we have a token
+  const token = await getAuthToken();
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers,
   });
 
   const data = await response.json();
@@ -126,4 +145,9 @@ export async function getOrderDetails(orderId: string): Promise<ApiResponse<Enri
 // Health check
 export async function checkHealth(): Promise<ApiResponse<{ status: string; services: Record<string, string> }>> {
   return fetchApi<{ status: string; services: Record<string, string> }>("/health");
+}
+
+// Auth APIs
+export async function getMe(): Promise<ApiResponse<MeResponse>> {
+  return fetchApi<MeResponse>("/auth/me");
 }

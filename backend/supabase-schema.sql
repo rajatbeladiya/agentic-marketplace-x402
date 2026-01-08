@@ -106,3 +106,35 @@ GRANT ALL ON products TO authenticated;
 GRANT ALL ON products TO service_role;
 GRANT ALL ON order_intents TO authenticated;
 GRANT ALL ON order_intents TO service_role;
+
+-- =====================================================
+-- AUTH MIGRATION: Link stores to Supabase Auth users
+-- Run this after the initial schema is set up
+-- =====================================================
+
+-- Add user_id column to stores table
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
+
+-- Create index for faster user lookups
+CREATE INDEX IF NOT EXISTS idx_stores_user_id ON stores(user_id);
+
+-- Add unique constraint: one user can only have one store
+-- Note: This allows NULL user_id for existing stores without users
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'unique_user_store'
+    ) THEN
+        ALTER TABLE stores ADD CONSTRAINT unique_user_store UNIQUE (user_id);
+    END IF;
+END $$;
+
+-- Add unique constraint on shopify_store_url if not exists
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'unique_shopify_store_url'
+    ) THEN
+        ALTER TABLE stores ADD CONSTRAINT unique_shopify_store_url UNIQUE (shopify_store_url);
+    END IF;
+END $$;

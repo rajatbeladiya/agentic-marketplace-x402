@@ -114,3 +114,15 @@ export interface EnrichedOrder extends OrderIntent {
     product: Product | null;
   }>;
 }
+
+// Auth types
+export interface AuthUser {
+  id: string;
+  email: string;
+}
+
+export interface MeResponse {
+  user: AuthUser;
+  store: Store | null;
+  hasStore: boolean;
+}

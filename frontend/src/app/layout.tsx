@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { WalletProvider } from "@/components/WalletProvider";
+import { AuthProvider } from "@/components/AuthProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,9 +32,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <WalletProvider>
-          {children}
-        </WalletProvider>
+        <AuthProvider>
+          <WalletProvider>
+            {children}
+          </WalletProvider>
+        </AuthProvider>
         <Toaster />
       </body>
     </html>

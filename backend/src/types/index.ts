@@ -1,6 +1,7 @@
 // Store types
 export interface Store {
   id: string;
+  user_id?: string; // Links store to Supabase Auth user
   shopify_store_url: string;
   shopify_admin_access_token: string;
   description: string;

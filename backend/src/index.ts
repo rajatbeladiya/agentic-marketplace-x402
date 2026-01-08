@@ -8,6 +8,7 @@ import { initializeDatabase } from './services/supabase.js';
 
 // Routes
 import healthRoutes from './routes/health.routes.js';
+import authRoutes from './routes/auth.routes.js';
 import storeRoutes from './routes/store.routes.js';
 import productRoutes from './routes/product.routes.js';
 import orderRoutes from './routes/order.routes.js';
@@ -36,6 +37,7 @@ app.use((req, _res, next) => {
 
 // API Routes
 app.use('/api', healthRoutes);
+app.use('/api', authRoutes);
 app.use('/api', storeRoutes);
 app.use('/api', productRoutes);
 app.use('/api', orderRoutes);

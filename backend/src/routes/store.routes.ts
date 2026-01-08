@@ -6,22 +6,24 @@ import {
   paginationSchema,
   uuidParamSchema,
 } from '../middleware/validation.js';
+import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import type { RegisterStoreRequest } from '../types/index.js';
 
 const router = Router();
 
-// Register a new store
+// Register a new store (requires authentication)
 router.post(
   '/stores',
+  requireAuth,
   validate(registerStoreSchema, 'body'),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const data = req.body as RegisterStoreRequest;
 
+      // Register store linked to authenticated user
+      const store = await storeService.registerStoreWithUser(data, req.user!.id);
 
-      const store = await storeService.registerStore(data);
-
-      console.log(`Store registered: ${store.id} - ${data.shopify_store_url}`);
+      console.log(`Store registered: ${store.id} - ${data.shopify_store_url} (user: ${req.user!.id})`);
 
       res.status(201).json({
         success: true,
@@ -94,12 +96,31 @@ router.get(
   }
 );
 
-// Update store (requires store ownership verification in production)
+// Update store (requires authentication and ownership)
 router.patch(
   '/stores/:id',
+  requireAuth,
   validate(uuidParamSchema, 'params'),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      // Verify ownership
+      const existingStore = await storeService.getStoreById(req.params.id);
+      if (!existingStore) {
+        res.status(404).json({
+          success: false,
+          error: 'Store not found',
+        });
+        return;
+      }
+
+      if (existingStore.user_id !== req.user!.id) {
+        res.status(403).json({
+          success: false,
+          error: 'Not authorized to update this store',
+        });
+        return;
+      }
+
       const { description, agent_metadata, pay_to_address } = req.body;
 
       const store = await storeService.updateStore(req.params.id, {
@@ -119,12 +140,31 @@ router.patch(
   }
 );
 
-// Delete store (requires store ownership verification in production)
+// Delete store (requires authentication and ownership)
 router.delete(
   '/stores/:id',
+  requireAuth,
   validate(uuidParamSchema, 'params'),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      // Verify ownership
+      const existingStore = await storeService.getStoreById(req.params.id);
+      if (!existingStore) {
+        res.status(404).json({
+          success: false,
+          error: 'Store not found',
+        });
+        return;
+      }
+
+      if (existingStore.user_id !== req.user!.id) {
+        res.status(403).json({
+          success: false,
+          error: 'Not authorized to delete this store',
+        });
+        return;
+      }
+
       await storeService.deleteStore(req.params.id);
 
       res.json({

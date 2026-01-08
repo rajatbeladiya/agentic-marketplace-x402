@@ -17,6 +17,7 @@ import {
   ArrowUpRight,
   TrendingUp,
   Loader2,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -24,13 +25,24 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { useStore } from "@/store/useStore";
+import { useAuth } from "@/components/AuthProvider";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { getOrderIntents, getOrders, getProducts } from "@/lib/api";
 import { formatMoveAmount, formatDate, truncateAddress } from "@/lib/utils";
 import type { OrderIntent, Product } from "@/types";
 
 export default function DashboardPage() {
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
+  );
+}
+
+function DashboardContent() {
   const { toast } = useToast();
   const { currentStore } = useStore();
+  const { signOut, user } = useAuth();
 
   const [orderIntents, setOrderIntents] = useState<OrderIntent[]>([]);
   const [paidOrders, setPaidOrders] = useState<OrderIntent[]>([]);
@@ -167,6 +179,15 @@ export default function DashboardPage() {
                   className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
                 />
                 Refresh
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </Button>
             </div>
           </div>
