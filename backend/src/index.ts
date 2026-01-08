@@ -16,6 +16,7 @@ import orderRoutes from './routes/order.routes.js';
 // MCP Servers
 import mainMcpServer from './mcp/main-mcp-server.js';
 import paymentMcpServer from './mcp/payment-mcp-server.js';
+import sseMcpServer from './mcp/sse-server.js';
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api', orderRoutes);
 // MCP Servers (JSON-RPC 2.0)
 app.use('/api', mainMcpServer);
 app.use('/api', paymentMcpServer);
+app.use('/api', sseMcpServer); // SSE transport for claude.ai
 
 // Root endpoint
 app.get('/', (_req, res) => {
@@ -66,6 +68,7 @@ app.get('/', (_req, res) => {
         mainTools: 'GET /api/mcp/tools',
         payment: 'POST /api/mcp/payment',
         paymentTools: 'GET /api/mcp/payment/tools',
+        sse: 'GET /api/mcp/sse (for claude.ai)',
       },
     },
     documentation: {
