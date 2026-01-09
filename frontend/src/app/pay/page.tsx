@@ -38,7 +38,7 @@ type PaymentRequirements = {
 
 const MOVEMENT_ASSET = "0x1::aptos_coin::AptosCoin";
 const MOVEMENT_NETWORK = "movement-testnet";
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4402/api";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4402/api";
 
 function PaymentPageContent() {
   const searchParams = useSearchParams();
