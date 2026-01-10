@@ -52,7 +52,7 @@ export default function HomePage() {
               </Link>
               <Link href="/register">
                 <Button variant="gradient" size="sm">
-                  Get Started
+                  Login
                 </Button>
               </Link>
             </div>
@@ -115,7 +115,14 @@ export default function HomePage() {
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
-              <Button variant="outline" size="xl">
+              <Button
+                variant="outline"
+                size="xl"
+                as="a"
+                href="https://youtu.be/773SN5Sqgfw"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Watch Demo
               </Button>
             </motion.div>
