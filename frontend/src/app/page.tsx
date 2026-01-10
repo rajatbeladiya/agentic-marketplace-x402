@@ -115,16 +115,6 @@ export default function HomePage() {
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
-              <Button
-                variant="outline"
-                size="xl"
-                as="a"
-                href="https://youtu.be/773SN5Sqgfw"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Watch Demo
-              </Button>
             </motion.div>
 
             {/* Stats */}
